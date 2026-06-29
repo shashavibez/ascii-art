@@ -1,34 +1,70 @@
 package main
 
 import (
+	"bufio"
+	"errors"
 	"os"
-	"strings"
+	"path/filepath"
 )
 
-const (
-	charsPerBlock = 9   
-	charHeight    = 8  
-)
+func LoadBanner(file string) (map[rune][]string, error) {
+	var result []string
 
-func LoadBanner(filename string) (map[rune][]string, error) {
-	data, err := os.ReadFile(filename)
+	var bannerFile string
+	// checks if a file path is absolute or not. E.g. c:\... or /...
+	//  helps support file created for Testing purpose.
+	if filepath.IsAbs(file) {
+		// mostly for test files
+		bannerFile = file
+	} else {
+		// for our core application logic
+		bannerFile = "banner_files/" + file
+	}
+
+	filename, err := os.Open(bannerFile) // open file from banner folder
 	if err != nil {
-		return nil, err
+		return nil, errors.New("file does not exist or error opening file")
+	}
+	defer filename.Close()
+
+	scanner := bufio.NewScanner(filename)
+
+	for scanner.Scan() {
+		result = append(result, scanner.Text())
 	}
 
-	content := strings.ReplaceAll(string(data), "\r\n", "\n")
-	lines := strings.Split(content, "\n")
-	fmt.Println(lines)
+	if err := scanner.Err(); err != nil {
+		return nil, errors.New("Error scanning file")
+	}
 
-	charMap := make(map[rune][]string)
+	if len(result) == 0 {
+		return nil, errors.New("empty file")
+	}
 
-	for i := 32; i <= 126; i++ {
-		index := (i-32)*charsPerBlock + 1
-		if index+charHeight > len(lines) {
-			break
+	if len(result) != 855 {
+		return nil, errors.New("length of banner file must not be less than 855")
+	}
+
+	if len(result)%9 != 0 {
+		return nil, errors.New("incomplete file")
+	}
+
+	font := make(map[rune][]string)
+
+	for i := 1; i+7 < len(result); i += 9 {
+		block := result[i : i+8]
+		char := rune((i / 9) + 32)
+
+		if len(block) != 8 {
+			return nil, errors.New("invalid banner")
 		}
-		charMap[rune(i)] = lines[index : index+charHeight]
+
+		font[char] = block
 	}
 
-	return charMap, nil
+	if len(font) == 0 {
+		return nil, errors.New("invalid banner")
+	}
+
+	return font, nil
 }
